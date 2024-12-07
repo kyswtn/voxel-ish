@@ -1,15 +1,25 @@
-import {useThree, type MeshProps} from '@react-three/fiber'
+import {useThree, type MeshProps, type Vector3} from '@react-three/fiber'
 import {useGesture} from '@use-gesture/react'
 import {useRef} from 'react'
 import * as THREE from 'three'
+import {type RapierRigidBody, RigidBody, useAfterPhysicsStep} from '@react-three/rapier'
 
-export default function Block() {
-  // biome-ignore lint/style/noNonNullAssertion: Ref always exists.
-  const ref = useRef<THREE.Mesh>(null!)
-  const {size, camera} = useThree()
+type BlockProps = {
+  position?: Vector3
+}
 
+export default function Block(props: BlockProps) {
+  const dragHandleRef = useRef<THREE.Mesh>(null!)
+  const meshRef = useRef<THREE.Mesh>(null!)
+  const rigidBodyRef = useRef<RapierRigidBody>(null!)
+
+  const {size, camera, scene} = useThree()
   const bind = useGesture(
     {
+      onDragStart: () => {
+        // Set body type to `KinematicPositionBased`.
+        rigidBodyRef.current.setBodyType(2, true)
+      },
       onDrag: ({delta, intentional}) => {
         // If displacement < threshold, return early.
         if (!intentional) return
@@ -23,12 +33,22 @@ export default function Block() {
         // top to mesh length as well as mesh to frustum bottom and add up. Divide by canvas size to
         // get the scale multiplier.
         const theta = (camera.fov * Math.PI) / 360
-        const Y = camera.position.distanceTo(ref.current.position)
+        const Y = camera.position.distanceTo(dragHandleRef.current.position)
         const scale = (2 * Math.tan(theta) * Y) / size.height
 
         const [x, z] = delta
-        ref.current.position.x += x * scale
-        ref.current.position.z += z * scale
+        dragHandleRef.current.position.x += x * scale
+        dragHandleRef.current.position.z += z * scale
+
+        // Everytime a mesh is dragged around, move the rigid body to follow it.
+        const worldPosition = new THREE.Vector3()
+        dragHandleRef.current.getWorldPosition(worldPosition)
+        rigidBodyRef.current.setNextKinematicTranslation(worldPosition)
+        rigidBodyRef.current.wakeUp()
+      },
+      onDragEnd: () => {
+        // Set body type to `Dynamic`.
+        rigidBodyRef.current.setBodyType(0, true)
       },
     },
     {
@@ -41,10 +61,41 @@ export default function Block() {
     },
   )
 
+  useAfterPhysicsStep(() => {
+    // We'll only sync those that the user's not controlling.
+    if (rigidBodyRef.current.isKinematic()) return
+
+    // Attach the objects to global scene temporarily, so that we can get scene-level position,
+    // and set positions independently of parents.
+    const handleParent = dragHandleRef.current.parent!
+    const meshParent = meshRef.current.parent!
+    scene.attach(dragHandleRef.current)
+    scene.attach(meshRef.current)
+
+    // Reposition the drag handle everytime the rigid body is kinematically moved. We take the
+    // position from the mesh inside rigid body since rigid body doesn't have it.
+    const {x, y, z} = meshRef.current.position
+    dragHandleRef.current.position.set(x, y, z)
+    dragHandleRef.current.setRotationFromEuler(meshRef.current.rotation)
+
+    handleParent.attach(dragHandleRef.current)
+    meshParent.attach(meshRef.current)
+  })
+
   return (
-    <mesh ref={ref} {...(bind() as MeshProps)}>
-      <boxGeometry />
-      <meshNormalMaterial />
-    </mesh>
+    <group position={props.position}>
+      {/* Invisible Drag Handle */}
+      <mesh ref={dragHandleRef} {...(bind() as MeshProps)}>
+        <boxGeometry />
+        <meshNormalMaterial wireframe />
+      </mesh>
+
+      <RigidBody ref={rigidBodyRef}>
+        <mesh ref={meshRef}>
+          <boxGeometry />
+          <meshBasicMaterial />
+        </mesh>
+      </RigidBody>
+    </group>
   )
 }

@@ -21,7 +21,8 @@ export default function App() {
 
       <Suspense fallback={null}>
         <Physics gravity={[0, 0, 0]}>
-          <Block />
+          <Block position={[0, 0, 0]} />
+          <Block position={[1, 0, 1]} />
         </Physics>
       </Suspense>
     </Canvas>

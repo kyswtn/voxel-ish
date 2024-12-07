@@ -16,6 +16,7 @@
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@types/three": "^0.170.0",
+    "@use-gesture/react": "^10.3.1",
     "astro": "^5.0.3",
     "r3f-perf": "^7.2.3",
     "react": "^18",

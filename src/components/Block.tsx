@@ -6,6 +6,7 @@ import {type RapierRigidBody, RigidBody, useAfterPhysicsStep} from '@react-three
 
 type BlockProps = {
   position?: Vector3
+  color?: string
 }
 
 export default function Block(props: BlockProps) {
@@ -87,13 +88,13 @@ export default function Block(props: BlockProps) {
       {/* Invisible Drag Handle */}
       <mesh ref={dragHandleRef} {...(bind() as MeshProps)}>
         <boxGeometry />
-        <meshNormalMaterial wireframe />
+        <meshNormalMaterial visible={false} />
       </mesh>
 
       <RigidBody ref={rigidBodyRef}>
         <mesh ref={meshRef}>
           <boxGeometry />
-          <meshBasicMaterial />
+          <meshPhongMaterial color={props.color} />
         </mesh>
       </RigidBody>
     </group>

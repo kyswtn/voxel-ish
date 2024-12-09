@@ -1,18 +1,23 @@
+import {a, type SpringValue} from '@react-spring/three'
 import {useThree, type MeshProps, type Vector3} from '@react-three/fiber'
 import {useGesture} from '@use-gesture/react'
-import {useRef} from 'react'
+import {useEffect, useRef, useState} from 'react'
 import * as THREE from 'three'
 import {type RapierRigidBody, RigidBody, useAfterPhysicsStep} from '@react-three/rapier'
 
 type BlockProps = {
   position?: Vector3
+  springPosition?: SpringValue<readonly [x: number, y: number, z: number]>
   color?: string
+  visible?: boolean | SpringValue<boolean>
 }
 
 export default function Block(props: BlockProps) {
-  const dragHandleRef = useRef<THREE.Mesh>(null!)
+  const doneAnimating = useRef(false)
   const meshRef = useRef<THREE.Mesh>(null!)
+  const dragHandleRef = useRef<THREE.Mesh>(null!)
   const rigidBodyRef = useRef<RapierRigidBody>(null!)
+  const rigidBodyMeshRef = useRef<THREE.Mesh>(null!)
 
   const {size, camera, scene} = useThree()
   const bind = useGesture(
@@ -40,12 +45,17 @@ export default function Block(props: BlockProps) {
         const [x, z] = delta
         dragHandleRef.current.position.x += x * scale
         dragHandleRef.current.position.z += z * scale
+        doneAnimating.current = true
 
         // Everytime a mesh is dragged around, move the rigid body to follow it.
         const worldPosition = new THREE.Vector3()
         dragHandleRef.current.getWorldPosition(worldPosition)
-        rigidBodyRef.current.setNextKinematicTranslation(worldPosition)
+
         rigidBodyRef.current.wakeUp()
+        rigidBodyRef.current.setNextKinematicTranslation(worldPosition)
+
+        meshRef.current.position.x += x * scale
+        meshRef.current.position.z += z * scale
       },
       onDragEnd: () => {
         // Set body type to `Dynamic`.
@@ -69,34 +79,45 @@ export default function Block(props: BlockProps) {
     // Attach the objects to global scene temporarily, so that we can get scene-level position,
     // and set positions independently of parents.
     const handleParent = dragHandleRef.current.parent!
+    const rigidBodyMeshParent = rigidBodyMeshRef.current.parent!
     const meshParent = meshRef.current.parent!
     scene.attach(dragHandleRef.current)
+    scene.attach(rigidBodyMeshRef.current)
     scene.attach(meshRef.current)
 
     // Reposition the drag handle everytime the rigid body is kinematically moved. We take the
     // position from the mesh inside rigid body since rigid body doesn't have it.
-    const {x, y, z} = meshRef.current.position
+    const {x, y, z} = rigidBodyMeshRef.current.position
     dragHandleRef.current.position.set(x, y, z)
-    dragHandleRef.current.setRotationFromEuler(meshRef.current.rotation)
+    dragHandleRef.current.setRotationFromEuler(rigidBodyMeshRef.current.rotation)
+    meshRef.current.position.set(x, y, z)
+    meshRef.current.setRotationFromEuler(rigidBodyMeshRef.current.rotation)
 
     handleParent.attach(dragHandleRef.current)
+    rigidBodyMeshParent.attach(rigidBodyMeshRef.current)
     meshParent.attach(meshRef.current)
   })
 
   return (
-    <group position={props.position}>
+    <>
       {/* Invisible Drag Handle */}
-      <mesh ref={dragHandleRef} {...(bind() as MeshProps)}>
+      <mesh ref={dragHandleRef} position={props.position} {...(bind() as MeshProps)}>
         <boxGeometry />
-        <meshNormalMaterial visible={false} />
+        <meshNormalMaterial wireframe visible={false} />
       </mesh>
 
-      <RigidBody ref={rigidBodyRef}>
-        <mesh ref={meshRef}>
+      {/* Invisible Rigid Body */}
+      <RigidBody ref={rigidBodyRef} position={props.position}>
+        <mesh ref={rigidBodyMeshRef}>
           <boxGeometry />
-          <meshPhongMaterial color={props.color} />
+          <meshNormalMaterial visible={false} />
         </mesh>
       </RigidBody>
-    </group>
+
+      <a.mesh ref={meshRef} position={props.springPosition ?? props.position}>
+        <boxGeometry />
+        <a.meshPhysicalMaterial color={props.color} visible={props.visible} />
+      </a.mesh>
+    </>
   )
 }

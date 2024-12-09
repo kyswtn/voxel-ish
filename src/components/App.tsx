@@ -41,7 +41,7 @@ export default function App() {
 
   return (
     <>
-      <Canvas camera={{position: [0, 25, 10]}} {...fileDragAndDropEventHandlers}>
+      <Canvas camera={{position: [0, 15, 10]}} {...fileDragAndDropEventHandlers}>
         {DEV && <DebugHelpers />}
 
         <directionalLight />

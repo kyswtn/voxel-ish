@@ -1,7 +1,7 @@
 import {useEffect, useRef, useState} from 'react'
 import {processImage, getImageDataFromFile} from '../lib/processImage'
 
-const demoImageUrl = '/figma.png'
+const demoImageUrl = '/nix.png'
 export default function ProcessImageDemo() {
   const canvasRef = useRef<HTMLCanvasElement>(null!)
   const [imageData, setImageData] = useState<ImageData>()

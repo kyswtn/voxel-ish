@@ -1,7 +1,7 @@
 import {a, type SpringValue} from '@react-spring/three'
 import {useThree, type MeshProps, type Vector3} from '@react-three/fiber'
 import {useGesture} from '@use-gesture/react'
-import {useEffect, useRef, useState} from 'react'
+import {useRef} from 'react'
 import * as THREE from 'three'
 import {type RapierRigidBody, RigidBody, useAfterPhysicsStep} from '@react-three/rapier'
 

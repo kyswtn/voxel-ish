@@ -1,4 +1,4 @@
-import {useSprings, config, a} from '@react-spring/three'
+import {useSprings, config} from '@react-spring/three'
 import Block from './Block'
 
 type VoxelImageProps = {
@@ -52,7 +52,7 @@ export default function VoxelImage(props: VoxelImageProps) {
 
   if (width > 32 || height > 32) return null
   return (
-    <group position={[-centerX, 0, -centerY]}>
+    <group position={[-centerX, 0, -(centerY + 1)]}>
       {springs.map((spring, index) => (
         <Block
           key={blocks[index].key}

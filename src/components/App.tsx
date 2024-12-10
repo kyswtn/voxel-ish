@@ -5,6 +5,7 @@ import {Suspense, useEffect, useState, type RefObject} from 'react'
 import {useFileDragAndDrop} from '../lib/hooks'
 import {getImageDataFromFile, processImage} from '../lib/processImage'
 import VoxelImage from './VoxelImage'
+import {OrbitControls} from '@react-three/drei'
 
 const DEV = import.meta.env.DEV
 function DebugHelpers() {
@@ -28,7 +29,7 @@ export default function App() {
 
   useEffect(() => {
     ;(async () => {
-      const demoImageUrl = '/bsky.png'
+      const demoImageUrl = '/nix.png'
       const response = await fetch(demoImageUrl)
       const blob = await response.blob()
       const file = new File([blob], demoImageUrl, {type: blob.type})
@@ -42,10 +43,19 @@ export default function App() {
   return (
     <>
       <Canvas camera={{position: [0, 15, 10]}} {...fileDragAndDropEventHandlers}>
-        {DEV && <DebugHelpers />}
+        {/* {DEV && <DebugHelpers />} */}
 
-        <directionalLight />
-        <ambientLight />
+        <OrbitControls
+          autoRotate
+          autoRotateSpeed={0.05}
+          enableRotate={false}
+          enableZoom={false}
+          enablePan={false}
+        />
+
+        <pointLight position={[5, 1, 5]} intensity={10} />
+        <directionalLight intensity={1.25} />
+        <ambientLight intensity={1.25} />
 
         <Suspense fallback={null}>
           <Physics gravity={[0, 0, 0]}>{imageData && <VoxelImage imageData={imageData} />}</Physics>

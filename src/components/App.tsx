@@ -3,7 +3,7 @@ import {Physics} from '@react-three/rapier'
 import {Perf} from 'r3f-perf'
 import {Suspense, useEffect, useState, type RefObject} from 'react'
 import {useFileDragAndDrop} from '../lib/hooks'
-import {getImageDataFromFile, processImage} from '../lib/processImage'
+import {getImageDataFromFile, processImage} from '../lib/image'
 import VoxelImage from './VoxelImage'
 import {OrbitControls} from '@react-three/drei'
 
@@ -11,7 +11,6 @@ const DEV = import.meta.env.DEV
 function DebugHelpers() {
   return (
     <>
-      <gridHelper />
       <Perf position="bottom-left" />
     </>
   )
@@ -21,6 +20,8 @@ export default function App() {
   const [imageData, setImageData] = useState<ImageData>()
   const {indicatorRef, eventHandlers: fileDragAndDropEventHandlers} = useFileDragAndDrop({
     onFileDrop: (file) => {
+      setImageData(undefined)
+
       getImageDataFromFile(file)
         .then((imageData) => processImage(imageData))
         .then((imageData) => setImageData(imageData))
@@ -29,7 +30,7 @@ export default function App() {
 
   useEffect(() => {
     ;(async () => {
-      const demoImageUrl = '/nix.png'
+      const demoImageUrl = '/bsky.png'
       const response = await fetch(demoImageUrl)
       const blob = await response.blob()
       const file = new File([blob], demoImageUrl, {type: blob.type})
@@ -42,8 +43,8 @@ export default function App() {
 
   return (
     <>
-      <Canvas camera={{position: [0, 15, 10]}} {...fileDragAndDropEventHandlers}>
-        {/* {DEV && <DebugHelpers />} */}
+      <Canvas camera={{position: [0, 5, 2]}} {...fileDragAndDropEventHandlers}>
+        {DEV && <DebugHelpers />}
 
         <OrbitControls
           autoRotate
@@ -53,12 +54,13 @@ export default function App() {
           enablePan={false}
         />
 
-        <pointLight position={[5, 1, 5]} intensity={10} />
-        <directionalLight intensity={1.25} />
-        <ambientLight intensity={1.25} />
+        <directionalLight color="white" position={[-36, 1, -72]} intensity={25} />
+        <directionalLight intensity={0.25} />
 
         <Suspense fallback={null}>
-          <Physics gravity={[0, 0, 0]}>{imageData && <VoxelImage imageData={imageData} />}</Physics>
+          <Physics gravity={[0, 0, 0]}>
+            {imageData && <VoxelImage imageData={imageData} blockSize={0.25} />}
+          </Physics>
         </Suspense>
       </Canvas>
       {/* File Drag and Drop Indicator behind Canvas */}

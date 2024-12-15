@@ -1,0 +1,17 @@
+@font-face {
+  font-family: "DotGothic16";
+  font-style: normal;
+  font-display: block;
+  font-weight: 400;
+  src: url(/fonts/dotgothic16-latin-400-normal.woff2) format("woff2");
+}
+
+html,
+body {
+  text-shadow: 0 1px 0 white;
+}
+
+a,
+label {
+  @apply cursor-pointer underline underline-offset-4 decoration-1 decoration-dashed;
+}

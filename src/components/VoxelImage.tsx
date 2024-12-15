@@ -1,10 +1,10 @@
 import * as THREE from 'three'
-import {useLayoutEffect, useMemo, useRef} from 'react'
+import {useCallback, useEffect, useLayoutEffect, useMemo, useRef} from 'react'
 import {useGesture} from '@use-gesture/react'
-import {useThree, type GroupProps} from '@react-three/fiber'
-import {type RapierRigidBody, RigidBody} from '@react-three/rapier'
-import type {RigidBodyState} from '@react-three/rapier/dist/declarations/src/components/Physics'
+import {useFrame, useThree, type GroupProps} from '@react-three/fiber'
+import {type RapierRigidBody, RigidBody, type RigidBodyProps} from '@react-three/rapier'
 import {RoundedBoxGeometry} from 'three/examples/jsm/geometries/RoundedBoxGeometry.js'
+import {processImage} from '../lib/processImage'
 
 type VoxelImageProps = {
   imageData: ImageData
@@ -17,6 +17,8 @@ type DragTriple = {
   rigidBody: RapierRigidBody
 }
 
+type RigidBodyState = ReturnType<NonNullable<RigidBodyProps['transformState']>>
+
 const tmpObject3d = new THREE.Object3D()
 const tmpObject3dPosition = new THREE.Vector3()
 const yAxisNormal = new THREE.Vector3(0, 1, 0)
@@ -24,45 +26,47 @@ const dragPlane = new THREE.Plane()
 const cursorPosition2d = new THREE.Vector2()
 const cursorPosition3d = new THREE.Vector3()
 
-export default function VoxelImage({imageData, blockSize = 1}: VoxelImageProps) {
+export default function VoxelImage({imageData: _imageData, blockSize = 1}: VoxelImageProps) {
   const {size, camera, raycaster} = useThree()
-  const blocks = useMemo(() => getBlocksFromImageData(imageData, blockSize), [imageData, blockSize])
+
+  // Process image and turn them into renderable block props, shift coordinates to recenter etc.
+  const imageData = useMemo(() => processImage(_imageData), [_imageData])
+  const blocks = useMemo(() => {
+    const shiftLeft = imageData.width / 2
+    const shiftRight = imageData.height / 1.95
+    return getBlocksFromImageData(imageData, blockSize, [shiftLeft, shiftRight])
+  }, [imageData, blockSize])
 
   // RoundedBoxGeometry used by instancedMesh, with colors attribute.
   const colors = useMemo(() => new Float32Array(blocks.flatMap((b) => b.color)), [blocks])
   const instancedMeshGeometry = useMemo(() => {
-    const geometry = new RoundedBoxGeometry(blockSize, blockSize, blockSize, 4, 0.0125)
+    const geometry = new RoundedBoxGeometry(blockSize, blockSize, blockSize, 4, 0.015)
     geometry.setAttribute('color', new THREE.InstancedBufferAttribute(colors, 4))
     return geometry
   }, [blockSize, colors])
+
+  const instancedMeshRef = useRef<THREE.InstancedMesh>(null!)
+  useLayoutEffect(() => {
+    for (let i = 0; i < blocks.length; i++) {
+      const [x, y, z] = blocks[i].position
+      // The blocks will be initially hidden, but they must be rendered otherwise instancedMesh
+      // will render blocks on [0, 0, 0] on start.
+      tmpObject3d.scale.set(0, 0, 0)
+      tmpObject3d.position.set(x, y, z)
+      tmpObject3d.updateMatrix()
+      instancedMeshRef.current.setMatrixAt(i, tmpObject3d.matrix)
+    }
+    instancedMeshRef.current.instanceMatrix.needsUpdate = true
+  }, [blocks])
 
   // These geometry and materials will be used by invisible drag handles and rigid bodies.
   // biome-ignore format: Single line reads better.
   const blockSizedBoxGeometry = useMemo(() => new THREE.BoxGeometry(blockSize, blockSize, blockSize), [blockSize])
   const basicInvisibleMaterial = useMemo(() => new THREE.MeshBasicMaterial({visible: false}), [])
-
-  // Active drag will be called a triple as it holds three things, i.e. instanceId or instance index,
-  // active dragHandle and rigidBody.
   const dragHandlesGroupRef = useRef<THREE.Group>(null!)
   const dragHandles = useRef<THREE.Mesh[]>([])
-  const rigidBodies = useRef<RapierRigidBody[]>([])
-  const instancedMeshRef = useRef<THREE.InstancedMesh>(null!)
   const activeDragTriple = useRef<DragTriple>()
-
-  // Run this before first paint. Place and position blocks for instancedMesh.
-  useLayoutEffect(() => {
-    for (let i = 0; i < blocks.length; i++) {
-      const block = blocks[i]!
-
-      tmpObject3d.position.set(...block.initialPosition)
-      tmpObject3d.updateMatrix()
-      instancedMeshRef.current.setMatrixAt(i, tmpObject3d.matrix)
-    }
-
-    instancedMeshRef.current.instanceMatrix.needsUpdate = true
-  }, [blocks])
-
-  const bind = useGesture(
+  const bindGestures = useGesture(
     {
       onDragStart: ({xy: [x, y], intentional}) => {
         // If displacement < threshold, don't move.
@@ -85,6 +89,8 @@ export default function VoxelImage({imageData, blockSize = 1}: VoxelImageProps) 
 
         // Wake rigidBody up to prepare for kinematic translation.
         rigidBody.setBodyType(2, true)
+
+        document.body.style.cursor = 'grabbing'
       },
       onDrag: ({xy: [x, y]}) => {
         if (activeDragTriple.current === undefined) return
@@ -116,6 +122,7 @@ export default function VoxelImage({imageData, blockSize = 1}: VoxelImageProps) 
 
         activeDragTriple.current.rigidBody.setBodyType(0, true)
         activeDragTriple.current = undefined
+        document.body.style.cursor = 'auto'
       },
     },
     {
@@ -136,46 +143,109 @@ export default function VoxelImage({imageData, blockSize = 1}: VoxelImageProps) 
     },
   )
 
-  // This gets triggered whenever a rigid body's state change. This saves me from having to sync
-  // instances to rigid bodies with hooks such as useAfterPhysicsStep.
-  const transformRigidBodyState = (state: RigidBodyState, index: number) => {
-    if (instancedMeshRef.current) {
-      return {
-        ...state,
-        getMatrix: (matrix) => {
-          instancedMeshRef.current.getMatrixAt(index, matrix)
-          return matrix
-        },
-        setMatrix: (matrix) => {
-          // Don't sync if the instance is the one being dragged.
-          if (activeDragTriple.current?.instanceId === index) return
-
-          // Sync drag handle.
-          const dragHandle = dragHandles.current[index]
-          if (dragHandle) {
-            dragHandle.position.setFromMatrixPosition(matrix)
-            dragHandle.setRotationFromMatrix(matrix)
-          }
-
-          // Sync instance.
-          instancedMeshRef.current.setMatrixAt(index, matrix)
-          instancedMeshRef.current.instanceMatrix.needsUpdate = true
-        },
-        meshType: 'instancedMesh',
-      } as RigidBodyState
+  // Animate blocks on mount.
+  const animationProgress = useRef<number[]>([])
+  const animationComplete = useRef(false)
+  useFrame((_, delta) => {
+    if (animationComplete.current) return
+    if (animationProgress.current.length < 1) {
+      animationProgress.current = blocks.map(() => 0)
     }
 
-    return state
-  }
+    let allBlocksFinished = true
+    for (let i = 0; i < blocks.length; i++) {
+      const block = blocks[i]
+      const [x, y, z] = block.position
+      const delayFactor = block.distanceFromCenter * 0.25
+
+      // Increment progress after delay.
+      if (animationProgress.current[i] < delayFactor) {
+        animationProgress.current[i] += delta
+        allBlocksFinished = false
+        continue
+      }
+
+      const progress = (animationProgress.current[i] - delayFactor) / 1.0
+      if (progress < 1) {
+        animationProgress.current[i] += delta
+        const easedProgress = 1 - (1 - progress) ** 6
+
+        // Lerp position between start and target.
+        const startY = y - 0.25
+        const newY = THREE.MathUtils.lerp(startY, y, easedProgress)
+
+        // Update block's position and scale.
+        tmpObject3d.scale.set(1, 1, 1)
+        tmpObject3d.position.set(x, newY, z)
+        tmpObject3d.updateMatrix()
+        instancedMeshRef.current.setMatrixAt(i, tmpObject3d.matrix)
+
+        allBlocksFinished = false
+      }
+    }
+
+    instancedMeshRef.current.instanceMatrix.needsUpdate = true
+    if (allBlocksFinished) animationComplete.current = true
+  })
+
+  const rigidBodies = useRef<RapierRigidBody[]>([])
+  // This gets triggered whenever a rigid body's state change. This saves me from having to sync
+  // instances to rigid bodies with hooks such as useAfterPhysicsStep.
+  const transformRigidBodyState = useCallback((state: RigidBodyState, index: number) => {
+    return {
+      ...state,
+      getMatrix: (matrix) => {
+        instancedMeshRef.current.getMatrixAt(index, matrix)
+        return matrix
+      },
+      setMatrix: (matrix) => {
+        // Don't sync if the instance is the one being dragged.
+        if (activeDragTriple.current?.instanceId === index) return
+
+        // Sync drag handle.
+        const dragHandle = dragHandles.current[index]
+        if (dragHandle) {
+          dragHandle.position.setFromMatrixPosition(matrix)
+          dragHandle.setRotationFromMatrix(matrix)
+        }
+
+        // Don't sync if the blocks have not finished animating.
+        if (!animationComplete.current) return state
+
+        // Sync instance.
+        instancedMeshRef.current.setMatrixAt(index, matrix)
+        instancedMeshRef.current.instanceMatrix.needsUpdate = true
+      },
+      meshType: 'instancedMesh',
+    } as typeof state
+  }, [])
+
+  // biome-ignore lint/correctness/useExhaustiveDependencies: Reset refs on blocks update.
+  useEffect(() => {
+    return () => {
+      dragHandles.current = []
+      rigidBodies.current = []
+      animationProgress.current = []
+      animationComplete.current = false
+      if (instancedMeshRef.current) {
+        instancedMeshRef.current.clear()
+        instancedMeshRef.current.instanceMatrix.needsUpdate = true
+      }
+    }
+  }, [blocks])
 
   return (
-    <>
-      <group ref={dragHandlesGroupRef} {...(bind() as GroupProps)}>
+    <group>
+      <instancedMesh ref={instancedMeshRef} args={[instancedMeshGeometry, undefined, blocks.length]}>
+        <meshPhysicalMaterial vertexColors />
+      </instancedMesh>
+
+      <group ref={dragHandlesGroupRef} {...(bindGestures() as GroupProps)}>
         {blocks.map((block, index) => (
           <mesh
             key={block.key}
             userData={{index}}
-            position={block.initialPosition}
+            position={block.position}
             ref={(dragHandle) => {
               if (dragHandle) dragHandles.current[index] = dragHandle
             }}
@@ -188,40 +258,40 @@ export default function VoxelImage({imageData, blockSize = 1}: VoxelImageProps) 
       {blocks.map((block, index) => (
         <RigidBody
           key={block.key}
-          position={block.initialPosition}
+          position={block.position}
           ref={(rigidBody) => {
             if (rigidBody) rigidBodies.current[index] = rigidBody
           }}
           // This is the function internally used by @react-three/rapier's InstancedRigidBodies.
           transformState={(state) => transformRigidBodyState(state, index)}
           // Physics configurations to make blocks behave the way they do.
-          angularDamping={1}
+          angularDamping={1.5}
           linearDamping={1.5}
         >
           <mesh geometry={blockSizedBoxGeometry} material={basicInvisibleMaterial} />
         </RigidBody>
       ))}
-
-      <instancedMesh
-        ref={instancedMeshRef}
-        args={[instancedMeshGeometry, undefined, blocks.length]}
-      >
-        <meshPhysicalMaterial vertexColors />
-      </instancedMesh>
-    </>
+    </group>
   )
 }
 
 type BlockProps = {
   key: string
-  initialPosition: [x: number, y: number, z: number]
+  position: [x: number, y: number, z: number]
   color: [r: number, g: number, b: number, a: number]
+  distanceFromCenter: number
 }
 
-function getBlocksFromImageData(imageData: ImageData, blockSize: number): BlockProps[] {
+function getBlocksFromImageData(
+  imageData: ImageData,
+  blockSize: number,
+  shifts: readonly [number, number],
+): BlockProps[] {
   const {data, width, height} = imageData
+  const [shiftLeft, shiftTop] = shifts
   const [centerX, centerY] = [width / 2, height / 2]
 
+  const keyPrefix = crypto.randomUUID()
   const blocks: BlockProps[] = []
   for (let i = 0; i < height; i++) {
     for (let j = 0; j < width; j++) {
@@ -233,8 +303,9 @@ function getBlocksFromImageData(imageData: ImageData, blockSize: number): BlockP
       if (a <= 0) continue
 
       blocks.push({
-        key: `${j}-${i}`,
-        initialPosition: [(j - centerX) * blockSize, 0, (i - centerY) * blockSize],
+        key: `${keyPrefix}-${j}-${i}`,
+        position: [(j - shiftLeft) * blockSize, 0, (i - shiftTop) * blockSize],
+        distanceFromCenter: Math.sqrt((centerX - j) ** 2 + (centerY - i) ** 2) / centerX,
         color: [r / 255, g / 255, b / 255, a],
       })
     }

@@ -1,5 +1,6 @@
 import {useEffect, useRef, useState} from 'react'
-import {processImage, getImageDataFromFile} from '../lib/processImage'
+import {processImage} from '../lib/processImage'
+import {getImageDataFromFile} from '../lib/getImageDataFromFile'
 
 const demoImageUrl = '/nix.png'
 export default function ProcessImageDemo() {
@@ -23,19 +24,16 @@ export default function ProcessImageDemo() {
     canvasRef.current.width = imageData.width
     canvasRef.current.height = imageData.height
 
-    processImage(imageData)
-      .then((processedImageData) => {
-        const tinyCanvas = document.createElement('canvas')
-        tinyCanvas.width = processedImageData.width
-        tinyCanvas.height = processedImageData.height
-        const tinyCanvasCtx = tinyCanvas.getContext('2d')!
-        tinyCanvasCtx.putImageData(processedImageData, 0, 0)
+    const processedImageData = processImage(imageData)
+    const tinyCanvas = document.createElement('canvas')
+    tinyCanvas.width = processedImageData.width
+    tinyCanvas.height = processedImageData.height
+    const tinyCanvasCtx = tinyCanvas.getContext('2d')!
+    tinyCanvasCtx.putImageData(processedImageData, 0, 0)
 
-        const ctx = canvasRef.current.getContext('2d')!
-        ctx.imageSmoothingEnabled = false
-        ctx.drawImage(tinyCanvas, 0, 0, imageData.width, imageData.height)
-      })
-      .catch((err) => console.error(err))
+    const ctx = canvasRef.current.getContext('2d')!
+    ctx.imageSmoothingEnabled = false
+    ctx.drawImage(tinyCanvas, 0, 0, imageData.width, imageData.height)
   }, [imageData])
 
   return (

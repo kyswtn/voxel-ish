@@ -1,29 +1,35 @@
 ---
+import '../styles/global.css'
+
+const title = 'Voxel-ish'
+const description = 'A fun little Three.js experiment'
+const url = Astro.site
+const ogUrl = new URL('og.png', url)
 ---
 
 <html lang="en">
   <head>
     <meta charset="utf-8" />
-    <meta name="theme-color" content="#FFFFFF">
+    <meta name="theme-color" content="#FFFFFF" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width" />
     <meta name="generator" content={Astro.generator} />
-    <title>Voxel-ish</title>
-    <style>
-      html,
-      body {
-        margin: 0;
-        padding: 0;
-      }
-
-      body {
-        position: relative;
-        width: 100%;
-        height: 100vh;
-      }
-    </style>
+    <title>{title}</title>
+    <meta name="title" content={title} />
+    <meta name="description" content={description} />
+    <meta property="og:type" content="website" />
+    <meta property="og:url" content={url} />
+    <meta property="og:title" content={title} />
+    <meta property="og:description" content={description} />
+    <meta property="og:image" content={ogUrl} />
+    <meta property="twitter:card" content="summary_large_image" />
+    <meta property="twitter:url" content={url} />
+    <meta property="twitter:title" content={title} />
+    <meta property="twitter:description" content={description} />
+    <meta property="twitter:image" content={ogUrl} />
+    <link href="/fonts/dotgothic16-latin-400-normal.woff2" rel="preload" type="font/woff2" as="font" crossorigin />
   </head>
-  <body>
+  <body class="relative w-full h-svh antialiased">
     <slot />
   </body>
 </html>

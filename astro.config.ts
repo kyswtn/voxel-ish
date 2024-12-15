@@ -9,5 +9,11 @@ export default defineConfig({
   build: {
     inlineStylesheets: 'always',
   },
-  integrations: [react(), tailwind(), compress()],
+  integrations: [
+    react(),
+    tailwind(),
+    compress({
+      SVG: false,
+    }),
+  ],
 })

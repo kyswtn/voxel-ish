@@ -22,11 +22,19 @@ const examples = [
   // Add more examples here.
 ].map((name) => `/examples/${name}`)
 
+const cache = new Map<string, Blob>()
+const fetchBlobAndCache = async (filePath: string) => {
+  if (cache.has(filePath)) return cache.get(filePath) as Blob
+  const response = await fetch(filePath)
+  const blob = await response.blob()
+  cache.set(filePath, blob)
+  return blob
+}
+
 const loadFromExample = async (_index = 0) => {
   const index = _index % examples.length
   const fileName = examples[index]
-  const response = await fetch(fileName)
-  const blob = await response.blob()
+  const blob = await fetchBlobAndCache(fileName)
   const file = new File([blob], fileName, {type: blob.type})
   const imageData = await getImageDataFromFile(file)
   return {file, imageData, example: index}

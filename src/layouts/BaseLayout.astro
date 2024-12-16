@@ -1,5 +1,6 @@
 ---
 import '../styles/global.css'
+import Analytics from '@vercel/analytics/astro'
 
 const title = 'Voxel-ish'
 const description = 'A fun little Three.js experiment'
@@ -28,6 +29,7 @@ const ogUrl = new URL('og.png', url)
     <meta property="twitter:description" content={description} />
     <meta property="twitter:image" content={ogUrl} />
     <link href="/fonts/dotgothic16-latin-400-normal.woff2" rel="preload" type="font/woff2" as="font" crossorigin />
+    <Analytics />
   </head>
   <body class="relative w-full h-svh antialiased">
     <slot />

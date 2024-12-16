@@ -175,6 +175,7 @@ export default function VoxelImage({imageData: _imageData, blockSize = 1}: Voxel
         const newY = THREE.MathUtils.lerp(startY, y, easedProgress)
 
         // Update block's position and scale.
+        tmpObject3d.rotation.set(0, 0, 0, THREE.Euler.DEFAULT_ORDER)
         tmpObject3d.scale.set(1, 1, 1)
         tmpObject3d.position.set(x, newY, z)
         tmpObject3d.updateMatrix()
@@ -236,7 +237,10 @@ export default function VoxelImage({imageData: _imageData, blockSize = 1}: Voxel
 
   return (
     <group>
-      <instancedMesh ref={instancedMeshRef} args={[instancedMeshGeometry, undefined, blocks.length]}>
+      <instancedMesh
+        ref={instancedMeshRef}
+        args={[instancedMeshGeometry, undefined, blocks.length]}
+      >
         <meshPhysicalMaterial vertexColors />
       </instancedMesh>
 
